@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hax自动抢鸡
 // @namespace    https://github.com/lvqopl/hax-auto-create-vps
-// @version      2.10.2                // 每次改动请递增此数字
+// @version      2.10.3
 // @description  常驻面板，默认永远缓存设置；支持密码、系统索引、数据中心空时刷新延迟、目标数据中心、开始/暂停；woiden 自动算术验证码（nextSibling 运算符）。
 // @author       lvqopl
 // @match        *://hax.co.id/create-vps/*
