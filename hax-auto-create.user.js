@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         VPS Create 自动化（常驻面板 + 数据中心控制 + 简化算术符号）
+// @name         VPS Create 自动化（始终缓存 + 开始/暂停）
 // @namespace    https://github.com/yourname/tampermonkey-scripts
-// @version      2.7.0
-// @description  常驻面板，支持密码、系统索引、数据中心空时刷新延迟、目标数据中心选择、缓存、开始/暂停；woiden 使用原始 nextSibling 方式获取运算符并计算验证码；自动提交 Cloudflare Turnstile 表单。
+// @version      2.8.0
+// @description  常驻面板，默认永远缓存设置；支持密码、系统索引、数据中心空时刷新延迟、目标数据中心、开始/暂停；woiden 自动算术验证码（nextSibling 运算符）。
 // @author       YourName
 // @match        *://hax.co.id/create-vps/*
 // @match        *://woiden.id/create-vps/*
@@ -17,7 +17,7 @@
        1️⃣ 常量 & 全局变量
        ========================================================== */
     const PANEL_ID    = 'vps-auto-settings-panel';
-    const STORAGE_KEY = 'vps_auto_settings';   // 本地缓存
+    const STORAGE_KEY = 'vps_auto_settings';   // 本地缓存（始终使用）
     const STATE_KEY   = 'vps_auto_state';      // “running” / “paused”
 
     let automationRunning = false; // true → 正在运行，false → 已暂停
@@ -45,7 +45,7 @@
     };
 
     /* ==========================================================
-       3️⃣ 常驻设置面板（密码、系统索引、刷新延迟、目标数据中心、缓存、开始/暂停）
+       3️⃣ 常驻面板（密码、系统索引、刷新延迟、目标数据中心、开始/暂停）
        ========================================================== */
     function createPanel() {
         if (document.getElementById(PANEL_ID)) return; // 已经创建
@@ -69,7 +69,7 @@
         panel.style.minWidth = '210px';
         panel.style.color = '#333';
 
-        // 只在 hax 页面出现目标数据中心下拉框
+        // 仅在 hax 页面出现目标数据中心下拉框
         const dcSelectHTML = isHax ? `
             <label>目标数据中心（可选）：
                 <select id="vps-dc-choice" style="width:100%;margin-top:4px;">
@@ -84,7 +84,7 @@
 
         panel.innerHTML = `
             <strong style="display:block;margin-bottom:8px;color:#4a90e2;">
-                VPS 自动化（常驻）
+                VPS 自动化（常驻·默认缓存）
             </strong>
 
             <label>密码：
@@ -104,38 +104,30 @@
 
             ${dcSelectHTML}
 
-            <label>
-                <input type="checkbox" id="vps-cache-toggle"/> 缓存设置
-            </label>
-            <br/><br/>
-
             <button id="vps-start-pause-btn"
                     style="width:100%;background:#4a90e2;color:#fff;border:none;padding:6px;cursor:pointer;">
                 开始自动化
             </button>
 
             <small style="display:block;margin-top:6px;color:#777;">
-                勾选“缓存设置”后，下次打开页面会自动填入上次保存的值。
+                所有配置始终会自动保存到本地缓存，刷新页面后会自动恢复。
             </small>
         `;
 
         // 挂到页面
         const attach = () => {
             document.body.appendChild(panel);
-            loadPanelValues();   // 读取缓存、恢复运行状态
-            bindPanelEvents();   // 绑定按钮、输入框等交互
+            loadPanelValues();   // 读取缓存（若有）或使用默认值
+            bindPanelEvents();   // 绑定按钮、输入框事件
         };
         if (document.body) attach();
         else waitForElement('body', attach);
     }
 
-    // 读取缓存 + 恢复运行状态
+    // 读取缓存（如果有）并填充面板；若没有则使用默认值
     function loadPanelValues() {
         const saved = localStorage.getItem(STORAGE_KEY);
-        const useCache = saved && JSON.parse(saved).cacheEnabled;
-        document.getElementById('vps-cache-toggle').checked = !!useCache;
-
-        if (useCache) {
+        if (saved) {
             const { password, osIndex, dcDelay, dcChoice } = JSON.parse(saved);
             document.getElementById('vps-pwd').value      = password ?? '123';
             document.getElementById('vps-os-index').value = osIndex ?? 2;
@@ -143,12 +135,13 @@
             const sel = document.getElementById('vps-dc-choice');
             if (sel) sel.value = dcChoice ?? '';
         } else {
+            // 没有缓存时使用默认值
             document.getElementById('vps-pwd').value      = '123';
             document.getElementById('vps-os-index').value = 2;
             document.getElementById('vps-dc-delay').value = 5000;
         }
 
-        // 读取上一次的运行状态（如果是“运行中”则直接启动）
+        // 恢复上一次的运行状态（如果是“运行中”则直接启动）
         if (localStorage.getItem(STATE_KEY) === 'running') {
             automationRunning = true;
             document.getElementById('vps-start-pause-btn').textContent = '暂停';
@@ -156,47 +149,40 @@
         }
     }
 
-    // 将面板当前值保存到本地缓存（仅在缓存勾选时使用）
+    // 将当前面板的值写进缓存（每次失去焦点都调用一次）
     function saveSettingsToCache() {
         const data = {
             password: document.getElementById('vps-pwd').value.trim() || '123',
             osIndex: parseInt(document.getElementById('vps-os-index').value, 10) || 2,
             dcDelay: parseInt(document.getElementById('vps-dc-delay').value, 10) || 5000,
-            dcChoice: (document.getElementById('vps-dc-choice') || {}).value || '',
-            cacheEnabled: document.getElementById('vps-cache-toggle').checked
+            dcChoice: (document.getElementById('vps-dc-choice') || {}).value || ''
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
     // 绑定按钮、输入框等事件
     function bindPanelEvents() {
+        // 开始 / 暂停 按钮
         const startBtn = document.getElementById('vps-start-pause-btn');
-
         startBtn.addEventListener('click', () => {
             automationRunning = !automationRunning;
             startBtn.textContent = automationRunning ? '暂停' : '开始自动化';
             localStorage.setItem(STATE_KEY, automationRunning ? 'running' : 'paused');
 
             if (automationRunning) {
-                if (document.getElementById('vps-cache-toggle').checked) saveSettingsToCache();
+                // 立即保存一次（防止页面直接刷新导致数据丢失）
+                saveSettingsToCache();
                 startAllProcesses();
             } else {
                 stopAllProcesses();
             }
         });
 
-        // 缓存开关改变时立即保存一次（若已勾选）
-        document.getElementById('vps-cache-toggle').addEventListener('change', ev => {
-            if (ev.target.checked) saveSettingsToCache();
-        });
-
-        // 所有输入框失去焦点后若已勾选缓存则同步保存
+        // 所有输入框失去焦点后自动保存（始终缓存）
         ['vps-pwd', 'vps-os-index', 'vps-dc-delay', 'vps-dc-choice'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
-            el.addEventListener('blur', () => {
-                if (document.getElementById('vps-cache-toggle').checked) saveSettingsToCache();
-            });
+            el.addEventListener('blur', saveSettingsToCache);
         });
     }
 
@@ -227,7 +213,7 @@
         // 用途（保持默认 index = 5）
         waitForElement('#purpose', el => (el.selectedIndex = 5));
 
-        // 协议
+        // 协议复选框
         waitForElement('input[name="agreement[]"]', () => {
             const checks = document.getElementsByName('agreement[]');
             for (let i = 0; i < checks.length; i++) checks[i].checked = true;
@@ -240,17 +226,17 @@
        ========================================================== */
     function handleDatacenter({ dcDelay, dcChoice, isHax }) {
         waitForElement('#datacenter', selectEl => {
-            // 数据中心列表仅有占位项 → 按设定延迟刷新页面
+            // 若只剩占位项，使用用户设定的延迟刷新页面
             if (selectEl.options.length === 1) {
-                const delay = Number.isFinite(dcDelay) && dcDelay > 0 ? dcDelay : 5000; // 默认 5 秒
+                const delay = Number.isFinite(dcDelay) && dcDelay > 0 ? dcDelay : 5000;
                 console.warn(`[VPS‑Auto] 数据中心列表为空，将在 ${delay}ms 后刷新`);
                 dcRefreshTimer = setTimeout(() => location.reload(), delay);
                 return;
             }
 
-            // 列表不为空 → 根据站点选择索引
+            // 非空列表 → 根据站点/用户选择定位索引
             if (isHax && dcChoice) {
-                // 在 hax 页面查找用户在下拉框里选的文字
+                // 寻找文字完全匹配的 option
                 let foundIdx = -1;
                 for (let i = 0; i < selectEl.options.length; i++) {
                     if (selectEl.options[i].textContent.trim() === dcChoice) {
@@ -260,14 +246,13 @@
                 }
                 if (foundIdx !== -1) {
                     selectEl.selectedIndex = foundIdx;
-                    console.log(`[VPS‑Auto] 已根据用户选的文字 "${dcChoice}" 设置数据中心索引 (${foundIdx})`);
+                    console.log(`[VPS‑Auto] 已根据用户文字 "${dcChoice}" 选中数据中心（索引 ${foundIdx})`);
                 } else {
-                    // 未匹配 → 仍使用最后一个
                     selectEl.selectedIndex = selectEl.options.length - 1;
                     console.log('[VPS‑Auto] 未匹配到用户指定的文字，使用最后一个数据中心');
                 }
             } else {
-                // woiden 或者用户未指定 → 直接选最后一个
+                // woiden 或未指定目标 → 默认选最后一个
                 selectEl.selectedIndex = selectEl.options.length - 1;
                 console.log('[VPS‑Auto] 已选最后一个数据中心（默认）');
             }
@@ -275,7 +260,7 @@
     }
 
     /* ==========================================================
-       6️⃣ woiden 的算术验证码（使用原始 nextSibling 方式获取运算符）
+       6️⃣ woiden 的算术验证码（使用原始 nextSibling 方式）
        ========================================================== */
     function calculateAndFill() {
         const images = document.querySelectorAll('.col-sm-3 img');
@@ -287,7 +272,7 @@
         const num1 = extractNumber(images[0].src);
         const num2 = extractNumber(images[1].src);
 
-        // **这里恢复为你原来的写法**（直接取 nextSibling 的文字）
+        // **保持原始写法**：直接取 nextSibling 的文本
         const operator = images[0].nextSibling.textContent.trim();
 
         let result = 0;
@@ -307,7 +292,6 @@
 
         console.log(`运算结果: ${num1} ${operator} ${num2} = ${result}`);
 
-        // 填写验证码输入框
         waitForElement('#captcha', input => {
             input.value = result;
             ['input', 'change', 'keyup'].forEach(ev => {
@@ -333,7 +317,7 @@
                 clearInterval(cfWatcherTimer);
                 cfWatcherTimer = null;
 
-                // 提交按钮（原 XPath）
+                // 通过 XPath 找提交按钮（保持原路径）
                 const xpath = "/html/body/main/div/div/div[2]/div/div/div/div/div/form/button";
                 const res = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
                 const btn = res.singleNodeValue;
@@ -368,22 +352,22 @@
         const isWoiden = location.host.includes('woiden.id');
 
         // 读取面板当前值（即使在运行期间用户随时改动也会被读取）
-        const password    = document.getElementById('vps-pwd').value.trim() || '123';
-        const osIndex     = parseInt(document.getElementById('vps-os-index').value, 10) || 2;
-        const dcDelay     = parseInt(document.getElementById('vps-dc-delay').value, 10) || 5000;
-        const dcChoice    = (document.getElementById('vps-dc-choice') || {}).value || '';
+        const password = document.getElementById('vps-pwd').value.trim() || '123';
+        const osIndex  = parseInt(document.getElementById('vps-os-index').value, 10) || 2;
+        const dcDelay  = parseInt(document.getElementById('vps-dc-delay').value, 10) || 5000;
+        const dcChoice = (document.getElementById('vps-dc-choice') || {}).value || '';
 
         console.log('[VPS‑Auto] 开始自动化 → 参数', {
             password, osIndex, dcDelay, dcChoice, isHax, isWoiden
         });
 
-        // 1️⃣ 填充基础表单（除数据中心外的所有字段）
+        // 1️⃣ 基础表单填充（除数据中心外的所有字段）
         fillBasicForm({ password, osIndex });
 
         // 2️⃣ 数据中心处理（空列表时延迟刷新，否则根据用户指定的文字定位）
         handleDatacenter({ dcDelay, dcChoice, isHax });
 
-        // 3️⃣ woiden 的算术验证码（如果是 woiden）
+        // 3️⃣ woiden 算术验证码（若是 woiden）
         if (isWoiden) {
             calculateAndFill();
         }
