@@ -31,7 +31,7 @@
 2. **安装脚本**
 
 <div align="center">
-  <a href="https://github.com/lvqopl/hax-auto-create-vps/raw/refs/heads/main/hax-auto-create.user.js" style="text-decoration:none;">
+  <a href="https://update.greasyfork.org/scripts/560433/hax%E8%87%AA%E5%8A%A8%E6%8A%A2%E9%B8%A1.user.js" style="text-decoration:none;">
     <img src="https://img.shields.io/badge/点击安装或更新-脚本-blue?style=for-the-badge&logo=tampermonkey" alt="Install Script">
   </a>
 </div>
