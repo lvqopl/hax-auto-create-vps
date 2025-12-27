@@ -234,12 +234,13 @@
                 return;
             }
 
-            // 非空列表 → 根据站点/用户选择定位索引
+            // 非空列表 → 根据站点/用户选择定位索引（包含匹配）
             if (isHax && dcChoice) {
-                // 寻找文字完全匹配的 option
+                // 包含判断：只要选项文字中包含用户输入的关键字即匹配
                 let foundIdx = -1;
                 for (let i = 0; i < selectEl.options.length; i++) {
-                    if (selectEl.options[i].textContent.trim() === dcChoice) {
+                    const optionText = selectEl.options[i].textContent.trim();
+                    if (optionText.includes(dcChoice)) { // ← 这里改为包含匹配
                         foundIdx = i;
                         break;
                     }
@@ -248,6 +249,7 @@
                     selectEl.selectedIndex = foundIdx;
                     console.log(`[VPS‑Auto] 已根据用户文字 "${dcChoice}" 选中数据中心（索引 ${foundIdx})`);
                 } else {
+                    // 未匹配到任何包含关键字的选项，仍使用最后一个
                     selectEl.selectedIndex = selectEl.options.length - 1;
                     console.log('[VPS‑Auto] 未匹配到用户指定的文字，使用最后一个数据中心');
                 }
