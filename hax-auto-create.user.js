@@ -1,13 +1,16 @@
 // ==UserScript==
 // @name         VPS Create 自动化（始终缓存 + 开始/暂停）
 // @namespace    https://github.com/lvqopl/hax-auto-create-vps
-// @version      2.9.0
+// @version      2.10.1                // 每次改动请递增此数字
 // @description  常驻面板，默认永远缓存设置；支持密码、系统索引、数据中心空时刷新延迟、目标数据中心、开始/暂停；woiden 自动算术验证码（nextSibling 运算符）。
 // @author       lvqopl
 // @match        *://hax.co.id/create-vps/*
 // @match        *://woiden.id/create-vps/*
 // @grant        none
 // @run-at       document-end
+// @downloadURL  https://raw.githubusercontent.com/lvqopl/hax-auto-create-vps/main/vps-auto-create.user.js
+// @updateURL    https://raw.githubusercontent.com/lvqopl/hax-auto-create-vps/main/vps-auto-create.user.js
+// @license      MIT
 // ==/UserScript==
 
 (() => {
