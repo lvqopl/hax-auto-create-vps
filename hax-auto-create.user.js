@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VPS Create 自动化（始终缓存 + 开始/暂停）
 // @namespace    https://github.com/yourname/tampermonkey-scripts
-// @version      2.8.0
+// @version      2.9.0
 // @description  常驻面板，默认永远缓存设置；支持密码、系统索引、数据中心空时刷新延迟、目标数据中心、开始/暂停；woiden 自动算术验证码（nextSibling 运算符）。
 // @author       YourName
 // @match        *://hax.co.id/create-vps/*
